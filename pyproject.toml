@@ -1,0 +1,14 @@
+[project]
+name = "mcp-skills-server"
+version = "0.1.0"
+description = "Minimal SEP-2640 MCP skills server for Airia gateway testing"
+requires-python = ">=3.12"
+dependencies = [
+    "mcp>=1.9.0",
+    "uvicorn>=0.30",
+    "starlette>=0.37",
+    "pyyaml>=6",
+]
+
+[tool.uv]
+package = false

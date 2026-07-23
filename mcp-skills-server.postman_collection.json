@@ -1,0 +1,223 @@
+{
+  "info": {
+    "name": "MCP Skills Server (SEP-2640)",
+    "description": "Full Streamable-HTTP flow for the local mcp-skills-server.\n\nRun the requests top-to-bottom. `1. initialize` captures the `Mcp-Session-Id` response header into the `sessionId` collection variable, so every later request reuses it automatically via the `Mcp-Session-Id: {{sessionId}}` header.\n\nResponses come back as SSE (text/event-stream), so bodies are prefixed with `data: `. Each request's test script parses that frame and logs the decoded JSON to the Postman Console (View > Show Postman Console).\n\nBase endpoint is the `baseUrl` variable (defaults to http://127.0.0.1:8000/mcp).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8000/mcp",
+      "type": "string"
+    },
+    {
+      "key": "sessionId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. initialize (captures sessionId)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Streamable HTTP returns the session id in a response header.",
+              "const sid = pm.response.headers.get('Mcp-Session-Id');",
+              "if (sid) {",
+              "    pm.collectionVariables.set('sessionId', sid);",
+              "    console.log('Captured Mcp-Session-Id:', sid);",
+              "} else {",
+              "    console.warn('No Mcp-Session-Id header found on the initialize response.');",
+              "}",
+              "",
+              "pm.test('received a session id', function () {",
+              "    pm.expect(sid, 'Mcp-Session-Id header').to.be.a('string').and.not.empty;",
+              "});",
+              "",
+              "// SSE body helper: decode the `data: ` frame for readability.",
+              "const m = /^data: (.*)$/m.exec(pm.response.text());",
+              "if (m) { console.log('initialize result:', m[1]); }"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Accept", "value": "application/json, text/event-stream" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-06-18\",\"capabilities\":{},\"clientInfo\":{\"name\":\"postman\",\"version\":\"0\"}}}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}",
+          "host": ["{{baseUrl}}"]
+        },
+        "description": "Handshake. The server responds with server capabilities and an `Mcp-Session-Id` header, which the test script stores in the `sessionId` collection variable."
+      }
+    },
+    {
+      "name": "2. notifications/initialized",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Accept", "value": "application/json, text/event-stream" },
+          { "key": "Mcp-Session-Id", "value": "{{sessionId}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}",
+          "host": ["{{baseUrl}}"]
+        },
+        "description": "Client-ready notification. No `id` (it's a notification), so the server returns no result body."
+      }
+    },
+    {
+      "name": "3. resources/list",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const m = /^data: (.*)$/m.exec(pm.response.text());",
+              "if (m) { console.log('resources/list:', JSON.stringify(JSON.parse(m[1]), null, 2)); }"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Accept", "value": "application/json, text/event-stream" },
+          { "key": "Mcp-Session-Id", "value": "{{sessionId}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"resources/list\"}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}",
+          "host": ["{{baseUrl}}"]
+        },
+        "description": "Lists the skill resources the server exposes."
+      }
+    },
+    {
+      "name": "4. Layer 1: resources/read skill://index.json",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const m = /^data: (.*)$/m.exec(pm.response.text());",
+              "if (m) {",
+              "    const body = JSON.parse(m[1]);",
+              "    console.log(body.result && body.result.contents ? body.result.contents[0].text : body);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Accept", "value": "application/json, text/event-stream" },
+          { "key": "Mcp-Session-Id", "value": "{{sessionId}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"resources/read\",\"params\":{\"uri\":\"skill://index.json\"}}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}",
+          "host": ["{{baseUrl}}"]
+        },
+        "description": "The catalog. File body is in result.contents[0].text."
+      }
+    },
+    {
+      "name": "5. Layer 2: resources/read skill://csv-insights/SKILL.md",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const m = /^data: (.*)$/m.exec(pm.response.text());",
+              "if (m) {",
+              "    const body = JSON.parse(m[1]);",
+              "    console.log(body.result && body.result.contents ? body.result.contents[0].text : body);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Accept", "value": "application/json, text/event-stream" },
+          { "key": "Mcp-Session-Id", "value": "{{sessionId}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"resources/read\",\"params\":{\"uri\":\"skill://csv-insights/SKILL.md\"}}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}",
+          "host": ["{{baseUrl}}"]
+        },
+        "description": "The skill instructions (SKILL.md)."
+      }
+    },
+    {
+      "name": "6. Layer 3: resources/read skill://csv-insights/scripts/summarize.py",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const m = /^data: (.*)$/m.exec(pm.response.text());",
+              "if (m) {",
+              "    const body = JSON.parse(m[1]);",
+              "    console.log(body.result && body.result.contents ? body.result.contents[0].text : body);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Accept", "value": "application/json, text/event-stream" },
+          { "key": "Mcp-Session-Id", "value": "{{sessionId}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"resources/read\",\"params\":{\"uri\":\"skill://csv-insights/scripts/summarize.py\"}}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}",
+          "host": ["{{baseUrl}}"]
+        },
+        "description": "A referenced file inside the skill folder."
+      }
+    }
+  ]
+}
