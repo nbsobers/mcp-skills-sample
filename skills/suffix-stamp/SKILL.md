@@ -1,6 +1,6 @@
 ---
 name: suffix-stamp
-description: Append a "THREE-" datetime suffix to a string. Use when the user wants to stamp text or a name with the current date and time.
+description: Append a "FOUR-" datetime suffix to a string. Use when the user wants to stamp text or a name with the current date and time.
 metadata:
   version: "1.0"
 ---

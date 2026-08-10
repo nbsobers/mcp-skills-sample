@@ -6,7 +6,7 @@ from datetime import datetime
 
 
 def stamp(text: str) -> str:
-    """Return text with a "-THREE-<ISO-8601 local datetime>" suffix (no microseconds)."""
+    """Return text with a "-FOUR-<ISO-8601 local datetime>" suffix (no microseconds)."""
     now = datetime.now().replace(microsecond=0).isoformat()
     return f"{text}-THREE-{now}"
 

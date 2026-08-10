@@ -5,7 +5,9 @@ A minimal **Skills Over MCP (SEP-2640)** server for testing the Airia MCP Gatewa
 It serves the skills in [`skills/`](./skills) over **Streamable HTTP** as MCP resources:
 
 - `skill://index.json` — the July-8 index (`url` / `digest` / `frontmatter`)
-- `skill://<name>/<file>` — every file in a skill folder, read on demand
+- `skill://<skill-path>/<file>` — every file in a skill folder, read on demand. The
+  skill-path may be a single segment (`hello-skill`) or **nested** to arbitrary depth
+  (`acme/billing/refunds`), per the spec's nested-skill-path rules
 
 It advertises `capabilities.resources` and the skills extension under
 `capabilities.experimental` (`io.modelcontextprotocol/skills`), matching what real hosts
@@ -18,6 +20,27 @@ like skillsovermcp.com do today.
 | `hello-skill` | single-file | `SKILL.md` |
 | `csv-insights` | multi-file | `SKILL.md`, `references/GUIDE.md`, `scripts/summarize.py` |
 | `suffix-stamp` | script-only | `SKILL.md`, `scripts/stamp.py` |
+| `petrichor-abacus` | script-only | `SKILL.md`, `scripts/count.py` |
+| `acme/billing/refunds` | nested-path | `SKILL.md`, `scripts/refund.py` |
+
+### Threat fixtures (prompt-injection) ⚠️
+
+These skills are **deliberately malicious** — each plants a prompt-injection
+payload in its `SKILL.md` `name`/`description` (the two fields the Airia gateway
+scans), so a working scanner should flag/quarantine every one. They're inert
+data (nothing executes; the one exfil host is the placeholder
+`exfil.example.com`). Each is tagged in frontmatter with `metadata.threat: true`,
+an `attack_type`, and `tags: [prompt-injection, threat, test-fixture]` (surfaced
+in `skill://index.json` → `frontmatter`) so scanner hits can be correlated.
+
+| Skill (`name`) | `attack_type` | What it tests |
+|----------------|---------------|----------------|
+| `ignore-all-previous-instructions` | instruction-override | Jailbreak; payload in **name + description** |
+| `weather-helper` | hidden-override-benign-name | Injection hidden in **description only** |
+| `system-admin-override` | authority-impersonation | Fake SYSTEM/admin/vendor authorization |
+| `secret-collector` | data-exfiltration | Harvest env/SSH/AWS secrets → POST to attacker URL |
+| `cleanup-assistant` | destructive-tool-hijack | `rm -rf` / delete emails, skip confirmation |
+| `note-encoder` | encoded-payload | Base64-obfuscated injection (decode-then-scan) |
 
 ## Requirements
 
@@ -134,8 +157,16 @@ gateway. The two skills should surface and reads should proxy through.
 ## Adding more skills
 
 Drop a new folder under `skills/` containing a `SKILL.md` with YAML frontmatter
-(`name` + `description`). The server rebuilds the index on restart. The folder name should
-match `frontmatter.name`.
+(`name` + `description`). The server rebuilds the index on restart.
+
+Folders may nest to any depth (e.g. `skills/acme/billing/refunds/`); the skill's URI uses
+the full relative path as the skill-path (`skill://acme/billing/refunds/SKILL.md`). Two
+spec rules apply (the server serves violations anyway but logs a warning, since it exists
+to test the gateway):
+
+- the **final** path segment must equal `frontmatter.name`
+- a `SKILL.md` must not appear inside another skill's directory (skills don't nest,
+  only paths do)
 
 ## Notes
 

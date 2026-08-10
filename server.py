@@ -13,7 +13,10 @@ observed in the wild (the draft churns weekly, so serve them all):
   - skills/list (method)          -> {"skills": [{uri, frontmatter, resources[]}]} with
                                      per-file digests; kept for experimentation (no host
                                      has been observed calling it).
-  - skill://<name>/<file>         -> each file in a skill folder, read on demand.
+  - skill://<skill-path>/<file>   -> each file in a skill folder, read on demand. The
+                                     skill-path may be a single segment (hello-skill) or
+                                     nested to arbitrary depth (acme/billing/refunds),
+                                     per the 2026-07 draft's nested-skill-path rules.
 
 Run:  uv run server.py      (listens on http://127.0.0.1:8000/mcp)
 """
@@ -128,8 +131,35 @@ def _digest(path: Path) -> str:
     return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _find_skill_dirs(root: Path) -> list[Path]:
+    """Recursively find every directory under `root` that holds a SKILL.md.
+
+    SEP-2640 allows the skill-path to nest to arbitrary depth
+    (`skill://acme/billing/refunds/SKILL.md`), but skills themselves must not
+    nest: the skill directory is the boundary, so once a directory holds a
+    SKILL.md its descendants belong to that skill and are not scanned further.
+    """
+    found: list[Path] = []
+
+    def walk(directory: Path) -> None:
+        if (directory / "SKILL.md").exists():
+            found.append(directory)
+            return
+        for child in sorted(p for p in directory.iterdir() if p.is_dir()):
+            walk(child)
+
+    for child in sorted(p for p in root.iterdir() if p.is_dir()):
+        walk(child)
+    return found
+
+
 def load_skills() -> tuple[dict[str, Path], dict, dict]:
     """Walk skills/ and return (uri -> file path), the `skills/list` result, and the index.
+
+    Skill directories may sit at the top of skills/ or nested at any depth; the
+    skill-path in each URI is the directory's path relative to skills/. Per the
+    spec, the final path segment must equal `frontmatter.name` (violations are
+    served anyway, with a warning, since this is a test server).
 
     Two discovery payloads are built from the same walk:
       - the `skills/list` method result, `{"skills": [{uri, frontmatter, resources[]}]}`,
@@ -142,26 +172,36 @@ def load_skills() -> tuple[dict[str, Path], dict, dict]:
     skills: list[dict] = []
     index_entries: list[dict] = []
 
-    for skill_dir in sorted(p for p in SKILLS_DIR.iterdir() if p.is_dir()):
+    for skill_dir in _find_skill_dirs(SKILLS_DIR):
         skill_md = skill_dir / "SKILL.md"
-        if not skill_md.exists():
-            continue
+        skill_path = skill_dir.relative_to(SKILLS_DIR).as_posix()
 
         frontmatter = _parse_frontmatter(skill_md.read_text(encoding="utf-8"))
         name = frontmatter.get("name", skill_dir.name)
+        if name != skill_dir.name:
+            logger.warning(
+                "skill %s: frontmatter name %r != final path segment %r (SEP-2640 requires they match)",
+                skill_path, name, skill_dir.name,
+            )
 
         # resources[] must list every file of the skill exactly once, including SKILL.md.
         resources: list[dict] = []
         for file_path in sorted(skill_dir.rglob("*")):
-            if file_path.is_file():
-                rel = file_path.relative_to(skill_dir).as_posix()
-                uri = f"skill://{name}/{rel}"
-                files[uri] = file_path
-                resources.append({"uri": uri, "digest": _digest(file_path)})
+            if not file_path.is_file():
+                continue
+            if file_path.name == "SKILL.md" and file_path.parent != skill_dir:
+                logger.warning(
+                    "skill %s: nested SKILL.md at %s (SEP-2640 forbids skills inside skills)",
+                    skill_path, file_path.relative_to(skill_dir).as_posix(),
+                )
+            rel = file_path.relative_to(skill_dir).as_posix()
+            uri = f"skill://{skill_path}/{rel}"
+            files[uri] = file_path
+            resources.append({"uri": uri, "digest": _digest(file_path)})
 
         skills.append(
             {
-                "uri": f"skill://{name}/SKILL.md",
+                "uri": f"skill://{skill_path}/SKILL.md",
                 "frontmatter": frontmatter,
                 "resources": resources,
             }
@@ -169,7 +209,7 @@ def load_skills() -> tuple[dict[str, Path], dict, dict]:
 
         index_entries.append(
             {
-                "url": f"skill://{name}/SKILL.md",
+                "url": f"skill://{skill_path}/SKILL.md",
                 "digest": _digest(skill_md),
                 "frontmatter": frontmatter,
             }
