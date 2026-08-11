@@ -22,6 +22,34 @@ like skillsovermcp.com do today.
 | `suffix-stamp` | script-only | `SKILL.md`, `scripts/stamp.py` |
 | `petrichor-abacus` | script-only | `SKILL.md`, `scripts/count.py` |
 | `acme/billing/refunds` | nested-path | `SKILL.md`, `scripts/refund.py` |
+| `name-signature` | binary asset | `SKILL.md`, `references/STYLES.md`, `scripts/sign.py`, `assets/sample-ada-lovelace.svg` |
+
+### `name-signature` — the binary-resource fixture ✍️
+
+Turns a typed name into a cursive signature SVG:
+
+```bash
+python3 skills/name-signature/scripts/sign.py "Ada Lovelace" > sig.svg
+python3 skills/name-signature/scripts/sign.py "Ada Lovelace" bold "#111111" > sig.svg
+```
+
+Letterforms are composed from cursive gestures (hump, bowl, ascender loop, descender loop),
+chained into one pen stroke, smoothed with Catmull-Rom, slanted, then filled as a
+variable-width outline so downstrokes read heavier than cross-strokes. Pure stdlib — no
+fonts, no image packages, no network — which matters because the server only *serves*
+files; the client runs the script. Output is deterministic: the hand-wobble is seeded from
+a SHA-256 of the name, so the same name always yields byte-identical SVG.
+
+It is also the **first skill here carrying a non-text file**. `.svg` is absent from
+`TEXT_SUFFIXES` in `server.py`, so `assets/sample-ada-lovelace.svg` takes the `read_bytes()`
+path and `resources/read` returns it as a base64 `blob` with `mimeType: image/svg+xml`,
+rather than the `text` every other resource in this repo returns. That makes it the fixture
+for checking whether the gateway proxies binary resource content intact:
+
+```bash
+# expect: image/svg+xml, blob, and a body that still parses as SVG
+... resources/read skill://name-signature/assets/sample-ada-lovelace.svg
+```
 
 ### Threat fixtures (prompt-injection) ⚠️
 
@@ -167,6 +195,15 @@ to test the gateway):
 - the **final** path segment must equal `frontmatter.name`
 - a `SKILL.md` must not appear inside another skill's directory (skills don't nest,
   only paths do)
+
+Every file in a skill folder is published, via `rglob("*")` — there is no allowlist and
+`.gitignore` is not consulted. So importing or running a skill's script in place leaves a
+`scripts/__pycache__/*.pyc` that becomes a real MCP resource on the next restart. Clear
+them before starting the server:
+
+```bash
+find skills -name __pycache__ -type d -prune -exec rm -rf {} +
+```
 
 ## Notes
 
