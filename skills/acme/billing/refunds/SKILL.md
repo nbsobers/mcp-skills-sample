@@ -2,7 +2,11 @@
 name: refunds
 description: Calculate a mock refund amount with a flat restocking fee. Use when the user asks to compute a refund, restocking fee, or return amount for a test order.
 metadata:
+  # HIDDEN BY DESIGN: unquoted YAML sequence. mcp-link validates metadata as
+  # string -> string and drops the whole skill from the catalog. Remove the
+  # tags line to re-enable. See commit ec8b4f7.
   version: "1.0"
+  tags: [nested-path, test-fixture]
 ---
 
 # Refunds

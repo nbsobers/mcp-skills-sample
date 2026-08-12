@@ -24,6 +24,34 @@ like skillsovermcp.com do today.
 | `acme/billing/refunds` | nested-path | `SKILL.md`, `scripts/refund.py` |
 | `name-signature` | binary asset | `SKILL.md`, `references/STYLES.md`, `scripts/sign.py`, `assets/sample-ada-lovelace.svg` |
 
+### Intentionally hidden from the gateway catalog 🙈
+
+Four skills are currently **hidden on purpose**:
+
+| Skill | Hidden via |
+|-------|-----------|
+| `petrichor-abacus` | `tags:` as an unquoted YAML sequence |
+| `acme/billing/refunds` | `tags:` as an unquoted YAML sequence |
+| `weather-helper` | `threat:` bool + `tags:` sequence |
+| `note-encoder` | `threat:` bool + `tags:` sequence |
+
+The mechanism is the one commit `ec8b4f7` fixed, applied deliberately in reverse.
+The Agent Skills spec defines `metadata` as a map of string → string, and
+`mcp-link` enforces that strictly: **any** non-string value makes it reject the
+entire skill and omit it from `skill://index.json`. So expect
+**`invalid_candidates: 4`** from the gateway — that count is by design, not a bug.
+Each hidden `SKILL.md` carries a `HIDDEN BY DESIGN` comment in its frontmatter.
+
+Scope: this hides them from the **gateway** only. `server.py` does no frontmatter
+validation, so all four are still served locally via `resources/list`,
+`resources/read`, `skills/list`, and this server's own `skill://index.json` — a
+client talking straight to the server still sees them. To hide them there too,
+move the directories out of `skills/` or filter in `_find_skill_dirs`.
+
+**To re-enable:** quote the values (`threat: "true"`, `tags: "a,b,c"`) or drop the
+added `tags` line, matching the style `ec8b4f7` established. Restart the server —
+`load_skills()` runs at import and there is no reload path.
+
 ### `name-signature` — the binary-resource fixture ✍️
 
 Turns a typed name into a cursive signature SVG:

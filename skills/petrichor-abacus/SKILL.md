@@ -1,6 +1,11 @@
 ---
 name: petrichor-abacus
 description: Count vowels, consonants, and words in text. Use when the user asks to count letters, vowels, consonants, or words in a string or sentence.
+metadata:
+  # HIDDEN BY DESIGN: unquoted YAML sequence. mcp-link validates metadata as
+  # string -> string and drops the whole skill from the catalog. Quote to
+  # re-enable (tags: "script-only,test-fixture"). See commit ec8b4f7.
+  tags: [script-only, test-fixture]
 ---
 
 # Petrichor Abacus
