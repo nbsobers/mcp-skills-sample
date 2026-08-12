@@ -26,24 +26,26 @@ like skillsovermcp.com do today.
 
 ### Intentionally hidden from the gateway catalog 🙈
 
-Four skills are currently **hidden on purpose**:
+Six skills are currently **hidden on purpose**:
 
 | Skill | Hidden via |
 |-------|-----------|
+| `hello-skill` | `tags:` as an unquoted YAML sequence |
 | `petrichor-abacus` | `tags:` as an unquoted YAML sequence |
 | `acme/billing/refunds` | `tags:` as an unquoted YAML sequence |
 | `weather-helper` | `threat:` bool + `tags:` sequence |
 | `note-encoder` | `threat:` bool + `tags:` sequence |
+| `cleanup-assistant` | `threat:` bool + `tags:` sequence |
 
 The mechanism is the one commit `ec8b4f7` fixed, applied deliberately in reverse.
 The Agent Skills spec defines `metadata` as a map of string → string, and
 `mcp-link` enforces that strictly: **any** non-string value makes it reject the
 entire skill and omit it from `skill://index.json`. So expect
-**`invalid_candidates: 4`** from the gateway — that count is by design, not a bug.
+**`invalid_candidates: 6`** from the gateway — that count is by design, not a bug.
 Each hidden `SKILL.md` carries a `HIDDEN BY DESIGN` comment in its frontmatter.
 
 Scope: this hides them from the **gateway** only. `server.py` does no frontmatter
-validation, so all four are still served locally via `resources/list`,
+validation, so all six are still served locally via `resources/list`,
 `resources/read`, `skills/list`, and this server's own `skill://index.json` — a
 client talking straight to the server still sees them. To hide them there too,
 move the directories out of `skills/` or filter in `_find_skill_dirs`.
