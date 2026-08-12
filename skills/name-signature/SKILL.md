@@ -3,7 +3,7 @@ name: name-signature
 description: Turn a typed name into a handwritten-style cursive signature image (SVG). Use when the user wants a signature generated from a name, an e-sign style signature graphic, a signature for an email sign-off or document, or asks to "sign" a name.
 metadata:
   version: "1.0"
-  tags: [signature, svg, image-generation, deterministic]
+  tags: "signature,svg,image-generation,deterministic"
 ---
 
 # Name Signature
